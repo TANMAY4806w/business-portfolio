@@ -4,6 +4,7 @@ const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
 const connectDB = require('./config/db');
+const { errorHandler } = require('./middleware/errorMiddleware');
 
 // Import routes
 const authRoutes = require('./routes/authRoutes');
@@ -119,6 +120,8 @@ io.on('connection', (socket) => {
         console.log(`Socket disconnected: ${socket.id}`);
     });
 });
+
+app.use(errorHandler);
 
 // ─── Start Server ───────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 5000;

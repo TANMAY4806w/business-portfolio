@@ -73,16 +73,20 @@ exports.getProfileByUserId = async (req, res) => {
 // @route   GET /api/business/profiles
 exports.getAllProfiles = async (req, res) => {
     try {
-        const { industry, minRating } = req.query;
+        const { industry, minRating, page, limit } = req.query;
         const filter = {};
 
         if (industry) filter.industry = new RegExp(industry, 'i');
         if (minRating) filter.averageRating = { $gte: Number(minRating) };
 
-        const profiles = await BusinessProfile.find(filter).populate(
-            'userId',
-            'name email'
-        );
+        const pageNum = parseInt(page, 10) || 1;
+        const limitNum = parseInt(limit, 10) || 20;
+        const startIndex = (pageNum - 1) * limitNum;
+
+        const profiles = await BusinessProfile.find(filter)
+            .populate('userId', 'name email')
+            .skip(startIndex)
+            .limit(limitNum);
 
         res.json(profiles);
     } catch (error) {

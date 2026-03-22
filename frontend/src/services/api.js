@@ -16,9 +16,25 @@ API.interceptors.request.use((config) => {
     return config;
 });
 
+// Handle 401 responses (e.g., token expired or user not found)
+API.interceptors.response.use(
+    (response) => response,
+    (error) => {
+        if (error.response && error.response.status === 401) {
+            localStorage.removeItem('bp_user');
+            // Check if not already on login page to avoid endless loops
+            if (window.location.pathname !== '/login' && window.location.pathname !== '/register') {
+                window.location.href = '/login';
+            }
+        }
+        return Promise.reject(error);
+    }
+);
+
 // ─── Auth ────────────────────────────────────────────────────────────────────
 export const registerUser = (data) => API.post('/auth/register', data);
 export const loginUser = (data) => API.post('/auth/login', data);
+export const googleAuth = (data) => API.post('/auth/google', data);
 export const getMe = () => API.get('/auth/me');
 
 // ─── Business Profile ────────────────────────────────────────────────────────

@@ -25,7 +25,7 @@ exports.createService = async (req, res) => {
 // @route   GET /api/services
 exports.getServices = async (req, res) => {
     try {
-        const { keyword, industry, minPrice, maxPrice, minRating } = req.query;
+        const { keyword, industry, minPrice, maxPrice, minRating, page, limit } = req.query;
         let filter = {};
 
         if (keyword) {
@@ -38,9 +38,15 @@ exports.getServices = async (req, res) => {
             if (maxPrice) filter.price.$lte = Number(maxPrice);
         }
 
+        const pageNum = parseInt(page, 10) || 1;
+        const limitNum = parseInt(limit, 10) || 20;
+        const startIndex = (pageNum - 1) * limitNum;
+
         let services = await Service.find(filter)
             .populate('businessId', 'name email')
-            .sort({ createdAt: -1 });
+            .sort({ createdAt: -1 })
+            .skip(startIndex)
+            .limit(limitNum);
 
         // If industry or minRating filter, we need profile data
         if (industry || minRating) {

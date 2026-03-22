@@ -1,15 +1,29 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { GoogleLogin } from '@react-oauth/google';
 import { useToast } from '../components/Toast';
 
 const Register = () => {
     const [form, setForm] = useState({ name: '', email: '', password: '', confirmPassword: '', role: 'client' });
     const [errors, setErrors] = useState({});
     const [loading, setLoading] = useState(false);
-    const { register } = useAuth();
+    const { register, googleLogin } = useAuth();
     const navigate = useNavigate();
     const toast = useToast();
+
+    const handleGoogleSuccess = async (credentialResponse) => {
+        setLoading(true);
+        try {
+            const user = await googleLogin(credentialResponse.credential, form.role);
+            toast.success('Account accessed successfully!');
+            navigate(user.role === 'business' ? '/dashboard' : '/');
+        } catch (err) {
+            toast.error(err.response?.data?.message || 'Google signup failed');
+        } finally {
+            setLoading(false);
+        }
+    };
 
     const handleChange = (e) => {
         setForm({ ...form, [e.target.name]: e.target.value });
@@ -181,6 +195,25 @@ const Register = () => {
                             </span>
                         ) : 'Create Account'}
                     </button>
+
+                    <div className="relative my-6">
+                        <div className="absolute inset-0 flex items-center">
+                            <div className="w-full border-t border-dark-600"></div>
+                        </div>
+                        <div className="relative flex justify-center text-sm">
+                            <span className="px-2 bg-dark-800 text-dark-400">Or signup with</span>
+                        </div>
+                    </div>
+
+                    <div className="flex justify-center">
+                        <GoogleLogin
+                            onSuccess={handleGoogleSuccess}
+                            onError={() => toast.error('Google Signup Failed')}
+                            theme="filled_black"
+                            shape="rectangular"
+                            text="signup_with"
+                        />
+                    </div>
                 </form>
 
                 <p className="text-center text-dark-400 text-sm mt-6 animate-fade-in-up"

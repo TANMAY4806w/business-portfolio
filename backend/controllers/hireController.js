@@ -12,6 +12,11 @@ exports.createHireRequest = async (req, res) => {
             return res.status(404).json({ message: 'Service not found' });
         }
 
+        // Prevent hiring own service
+        if (service.businessId.toString() === req.user._id.toString()) {
+            return res.status(400).json({ message: 'You cannot hire your own service' });
+        }
+
         // Check if a pending/active hire request already exists
         const existing = await HireRequest.findOne({
             clientId: req.user._id,
