@@ -215,6 +215,7 @@ Create a `.env` file in the `backend/` directory:
 PORT=5000
 MONGO_URI=mongodb+srv://<username>:<password>@cluster0.xxxxx.mongodb.net/business-portfolio?retryWrites=true&w=majority
 JWT_SECRET=your_super_secret_key_here
+GOOGLE_CLIENT_ID=your_google_client_id_here
 CLIENT_URL=http://localhost:5173
 ```
 
@@ -223,18 +224,20 @@ CLIENT_URL=http://localhost:5173
 | `PORT` | Yes | Server port (default: 5000) |
 | `MONGO_URI` | Yes | MongoDB connection string |
 | `JWT_SECRET` | Yes | Secret key for JWT token signing (use a long random string) |
+| `GOOGLE_CLIENT_ID` | Yes | Used to verify Google Sign-In secure tokens |
 | `CLIENT_URL` | No | Frontend URL for CORS (auto-includes localhost) |
 
-### Frontend Environment (optional, for deployment)
+### Frontend Environment (Required for Google Auth)
 
 Create a `.env` file in the `frontend/` directory:
 
 ```env
+VITE_GOOGLE_CLIENT_ID=your_google_client_id_here
 VITE_API_URL=https://your-backend.onrender.com/api
 VITE_SOCKET_URL=https://your-backend.onrender.com
 ```
 
-> **Note:** For local development, these are **not needed** — Vite proxies API calls to localhost automatically.
+> **Note:** For local development, `VITE_API_URL` and `VITE_SOCKET_URL` are not needed — Vite proxies API calls to localhost automatically. However, `VITE_GOOGLE_CLIENT_ID` is strictly required for Google Auth to work.
 
 ### MongoDB Atlas Setup (Cloud — Free)
 
