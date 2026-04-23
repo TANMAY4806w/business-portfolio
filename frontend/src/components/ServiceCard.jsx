@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 
-const ServiceCard = ({ service, showHire = false, onHire }) => {
+const ServiceCard = ({ service, showHire = false, hasHired = false, onHire }) => {
     const businessName = service.businessId?.name || 'Business';
 
     return (
@@ -40,9 +40,10 @@ const ServiceCard = ({ service, showHire = false, onHire }) => {
                         View Profile
                     </Link>
                     {showHire && (
-                        <button onClick={() => onHire?.(service._id)}
-                            className="flex-1 btn-primary !py-2 text-sm">
-                            Hire Now
+                        <button onClick={() => !hasHired && onHire?.(service._id)}
+                            disabled={hasHired}
+                            className={`flex-1 !py-2 text-sm ${hasHired ? 'bg-dark-600 text-dark-300 cursor-not-allowed rounded-xl font-medium border border-dark-500' : 'btn-primary'}`}>
+                            {hasHired ? 'Requested ✓' : 'Hire Now'}
                         </button>
                     )}
                 </div>

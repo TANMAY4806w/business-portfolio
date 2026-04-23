@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { getServices, createHireRequest } from '../services/api';
+import { getServices, createHireRequest, getMyHireRequests } from '../services/api';
 import ServiceCard from '../components/ServiceCard';
 import SearchFilters from '../components/SearchFilters';
 import { useToast } from '../components/Toast';
@@ -10,6 +10,7 @@ const Home = () => {
     const { user } = useAuth();
     const toast = useToast();
     const [services, setServices] = useState([]);
+    const [hiredIds, setHiredIds] = useState(new Set());
     const [loading, setLoading] = useState(true);
 
     const fetchServices = async (filters = {}) => {
@@ -26,7 +27,16 @@ const Home = () => {
 
     useEffect(() => {
         fetchServices();
-    }, []);
+        
+        if (user?.role === 'client') {
+            getMyHireRequests()
+                .then(({ data }) => {
+                    const activeRequests = data.filter(r => r.status === 'pending' || r.status === 'accepted');
+                    setHiredIds(new Set(activeRequests.map(r => r.serviceId._id || r.serviceId)));
+                })
+                .catch(err => console.error("Failed to fetch hire requests", err));
+        }
+    }, [user]);
 
     const handleHire = async (serviceId) => {
         if (!user) {
@@ -40,8 +50,13 @@ const Home = () => {
         try {
             await createHireRequest({ serviceId });
             toast.success('Hire request sent successfully!');
+            setHiredIds(prev => new Set([...prev, serviceId]));
         } catch (err) {
             toast.error(err.response?.data?.message || 'Failed to send hire request');
+            // If the backend says already hired, just update the UI
+            if (err.response?.status === 400 && err.response?.data?.message?.includes('already have an active hire request')) {
+                setHiredIds(prev => new Set([...prev, serviceId]));
+            }
         }
     };
 
@@ -168,6 +183,7 @@ const Home = () => {
                                 <ServiceCard
                                     service={service}
                                     showHire={user?.role === 'client'}
+                                    hasHired={hiredIds.has(service._id)}
                                     onHire={handleHire}
                                 />
                             </div>

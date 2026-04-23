@@ -66,28 +66,38 @@ exports.sendSOWAndPaymentLink = async (clientUser, businessUser, service, hireRe
         <a href="${paymentUrl}" style="padding: 10px 20px; background-color: #8b5cf6; color: white; text-decoration: none; border-radius: 5px;">Pay Now</a>
     `;
 
+    // Send SOW and Payment link to Client
     await sendEmail({
         email: clientUser.email,
         subject: `Request Accepted Update: Pay Now for ${service.title}`,
         html: htmlMsg,
         attachments
     });
+
+    // Also send a copy of the SOW to the Business
+    await sendEmail({
+        email: businessUser.email,
+        subject: `SOW Generated: ${service.title}`,
+        html: `<h2>Statement of Work Generated</h2><p>You have accepted the hire request from ${clientUser.name}. A copy of the Statement of Work (SOW) is attached for your records. The client has been notified to complete the upfront payment.</p>`,
+        attachments
+    });
 };
 
 exports.sendPaymentReceipt = async (clientUser, businessUser, service, invoicePdfBuffer, hireRequestId) => {
-    // Notify Business
-    await sendEmail({
-        email: businessUser.email,
-        subject: `Payment Received! Project Started: ${service.title}`,
-        html: `<h2>Payment Secure!</h2><p>The client has paid. You can now begin working on the service: ${service.title}.</p>`,
-    });
-
     const attachments = invoicePdfBuffer ? [{
         filename: `Invoice_${hireRequestId}.pdf`,
         content: invoicePdfBuffer.toString('base64'),
         contentType: 'application/pdf',
         encoding: 'base64'
     }] : [];
+
+    // Notify Business with Invoice
+    await sendEmail({
+        email: businessUser.email,
+        subject: `Payment Received! Project Started: ${service.title}`,
+        html: `<h2>Payment Secure!</h2><p>The client has paid. You can now begin working on the service: ${service.title}. Attached is a copy of the official invoice for your accounting records.</p>`,
+        attachments
+    });
 
     // Notify Client with Invoice
     await sendEmail({

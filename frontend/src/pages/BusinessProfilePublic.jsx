@@ -9,13 +9,14 @@ import ServiceCard from '../components/ServiceCard';
 import ReviewCard from '../components/ReviewCard';
 import StarRating from '../components/StarRating';
 import { useAuth } from '../context/AuthContext';
-import { createHireRequest } from '../services/api';
+import { createHireRequest, getMyHireRequests } from '../services/api';
 
 const BusinessProfilePublic = () => {
     const { userId } = useParams();
     const { user } = useAuth();
     const [profile, setProfile] = useState(null);
     const [services, setServices] = useState([]);
+    const [hiredIds, setHiredIds] = useState(new Set());
     const [reviews, setReviews] = useState([]);
     const [loading, setLoading] = useState(true);
     const [message, setMessage] = useState('');
@@ -24,14 +25,19 @@ const BusinessProfilePublic = () => {
     useEffect(() => {
         const fetchAll = async () => {
             try {
-                const [profileRes, servicesRes, reviewsRes] = await Promise.all([
+                const [profileRes, servicesRes, reviewsRes, hireRes] = await Promise.all([
                     getProfileByUserId(userId),
                     getServicesByBusiness(userId),
                     getBusinessReviews(userId),
+                    user?.role === 'client' ? getMyHireRequests() : Promise.resolve({ data: [] }),
                 ]);
                 setProfile(profileRes.data);
                 setServices(servicesRes.data);
                 setReviews(reviewsRes.data);
+                if (user?.role === 'client') {
+                    const activeRequests = hireRes.data.filter(r => r.status === 'pending' || r.status === 'accepted');
+                    setHiredIds(new Set(activeRequests.map(r => r.serviceId._id || r.serviceId)));
+                }
             } catch (err) {
                 console.error(err);
             } finally {
@@ -47,9 +53,13 @@ const BusinessProfilePublic = () => {
         try {
             await createHireRequest({ serviceId });
             setMessage('Hire request sent!');
+            setHiredIds(prev => new Set([...prev, serviceId]));
             setTimeout(() => setMessage(''), 3000);
         } catch (err) {
             setMessage(err.response?.data?.message || 'Failed');
+            if (err.response?.status === 400 && err.response?.data?.message?.includes('already have an active hire request')) {
+                setHiredIds(prev => new Set([...prev, serviceId]));
+            }
         }
     };
 
@@ -128,7 +138,7 @@ const BusinessProfilePublic = () => {
                         <p className="text-dark-400 col-span-2 text-center py-10">No services listed yet.</p>
                     ) : (
                         services.map((s) => (
-                            <ServiceCard key={s._id} service={s} showHire={user?.role === 'client'} onHire={handleHire} />
+                            <ServiceCard key={s._id} service={s} showHire={user?.role === 'client'} hasHired={hiredIds.has(s._id)} onHire={handleHire} />
                         ))
                     )}
                 </div>
