@@ -12,6 +12,9 @@ import AddService from './pages/AddService';
 import BusinessProfilePublic from './pages/BusinessProfilePublic';
 import HireRequests from './pages/HireRequests';
 import Chat from './pages/Chat';
+import PaymentSuccess from './pages/PaymentSuccess';
+import PaymentCancel from './pages/PaymentCancel';
+import StripeReturn from './pages/StripeReturn';
 import NotFound from './pages/NotFound';
 
 function App() {
@@ -54,6 +57,30 @@ function App() {
                         element={
                             <ProtectedRoute>
                                 <Chat />
+                            </ProtectedRoute>
+                        }
+                    />
+                    <Route
+                        path="/stripe-return"
+                        element={
+                            <ProtectedRoute roles={['business']}>
+                                <StripeReturn />
+                            </ProtectedRoute>
+                        }
+                    />
+                    <Route
+                        path="/payment-success"
+                        element={
+                            <ProtectedRoute roles={['client']}>
+                                <PaymentSuccess />
+                            </ProtectedRoute>
+                        }
+                    />
+                    <Route
+                        path="/payment-cancel"
+                        element={
+                            <ProtectedRoute roles={['client']}>
+                                <PaymentCancel />
                             </ProtectedRoute>
                         }
                     />

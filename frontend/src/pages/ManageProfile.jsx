@@ -4,7 +4,7 @@ import {
     getMyProfile,
     createOrUpdateProfile,
     addPortfolioProject,
-    deletePortfolioProject,
+    deletePortfolioProject
 } from '../services/api';
 
 const industries = [
@@ -18,6 +18,7 @@ const ManageProfile = () => {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [message, setMessage] = useState('');
+    const [onboarding, setOnboarding] = useState(false);
 
     const [form, setForm] = useState({
         companyName: '',
@@ -99,7 +100,7 @@ const ManageProfile = () => {
 
             {message && (
                 <div className={`mb-4 p-3 rounded-xl text-sm font-medium
-          ${message.includes('Error') ? 'bg-red-500/10 border border-red-500/30 text-red-400'
+          ${message.includes('Error') || message.includes('Failed') ? 'bg-red-500/10 border border-red-500/30 text-red-400'
                         : 'bg-green-500/10 border border-green-500/30 text-green-400'}`}>
                     {message}
                 </div>

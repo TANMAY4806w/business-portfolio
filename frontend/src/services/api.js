@@ -1,28 +1,26 @@
 import axios from 'axios';
+import { auth } from '../config/firebase';
 
 const API = axios.create({
     baseURL: import.meta.env.VITE_API_URL || '/api',
 });
 
-// Attach JWT token to every request
-API.interceptors.request.use((config) => {
-    const stored = localStorage.getItem('bp_user');
-    if (stored) {
-        const { token } = JSON.parse(stored);
-        if (token) {
-            config.headers.Authorization = `Bearer ${token}`;
-        }
+// Attach Firebase ID token to every request
+API.interceptors.request.use(async (config) => {
+    const user = auth.currentUser;
+    if (user) {
+        const token = await user.getIdToken();
+        config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
 });
 
-// Handle 401 responses (e.g., token expired or user not found)
+// Handle 401 responses
 API.interceptors.response.use(
     (response) => response,
-    (error) => {
-        if (error.response && error.response.status === 401) {
-            localStorage.removeItem('bp_user');
-            // Check if not already on login page to avoid endless loops
+    async (error) => {
+        if (error.response && (error.response.status === 401 || error.response.status === 403)) {
+            await auth.signOut();
             if (window.location.pathname !== '/login' && window.location.pathname !== '/register') {
                 window.location.href = '/login';
             }
@@ -31,10 +29,8 @@ API.interceptors.response.use(
     }
 );
 
-// ─── Auth ────────────────────────────────────────────────────────────────────
+// ─── Auth (Backend sync) ──────────────────────────────────────────────────────
 export const registerUser = (data) => API.post('/auth/register', data);
-export const loginUser = (data) => API.post('/auth/login', data);
-export const googleAuth = (data) => API.post('/auth/google', data);
 export const getMe = () => API.get('/auth/me');
 
 // ─── Business Profile ────────────────────────────────────────────────────────
@@ -66,5 +62,10 @@ export const getMessages = (hireRequestId) => API.get(`/messages/${hireRequestId
 // ─── Reviews ─────────────────────────────────────────────────────────────────
 export const createReview = (data) => API.post('/reviews', data);
 export const getBusinessReviews = (businessId) => API.get(`/reviews/${businessId}`);
+
+// ─── Payments ────────────────────────────────────────────────────────────────
+export const createCheckoutSession = (data) => API.post('/payments/create-checkout-session', data);
+export const onboardWithStripe = () => API.post('/payments/onboard');
+export const processMockPayment = (data) => API.post('/payments/mock-pay', data);
 
 export default API;

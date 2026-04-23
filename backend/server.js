@@ -3,7 +3,10 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
-const connectDB = require('./config/db');
+const helmet = require('helmet');
+const compression = require('compression');
+// Import Firebase database instance
+const { db } = require('./config/firebase');
 const { errorHandler } = require('./middleware/errorMiddleware');
 
 // Import routes
@@ -13,10 +16,7 @@ const serviceRoutes = require('./routes/serviceRoutes');
 const hireRoutes = require('./routes/hireRoutes');
 const messageRoutes = require('./routes/messageRoutes');
 const reviewRoutes = require('./routes/reviewRoutes');
-
-// Import models for Socket.io
-const Message = require('./models/Message');
-const HireRequest = require('./models/HireRequest');
+const paymentRoutes = require('./routes/paymentRoutes');
 
 const app = express();
 const server = http.createServer(app);
@@ -36,12 +36,20 @@ const io = new Server(server, {
     },
 });
 
-// Middleware
+// ─── Stripe Webhook Route ───────────────────────────────────────────────────
+// Must be registered BEFORE express.json() so the webhook gets the raw body
+const { webhook } = require('./controllers/paymentController');
+app.post('/api/payments/webhook', express.raw({ type: 'application/json' }), webhook);
+
+// General Middleware
+app.use(helmet()); 
+app.use(compression());
 app.use(cors({ origin: allowedOrigins, credentials: true }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
 // API Routes
+app.use('/api/payments', paymentRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/business', businessRoutes);
 app.use('/api/services', serviceRoutes);
@@ -61,15 +69,17 @@ io.on('connection', (socket) => {
     // Join a chat room (keyed by hireRequestId)
     socket.on('joinRoom', async ({ hireRequestId, userId }) => {
         try {
-            const hireRequest = await HireRequest.findById(hireRequestId);
-            if (!hireRequest) {
+            const hireDoc = await db.collection('hireRequests').doc(hireRequestId).get();
+            if (!hireDoc.exists) {
                 socket.emit('error', { message: 'Hire request not found' });
                 return;
             }
 
+            const hireRequest = hireDoc.data();
+
             // Verify user is part of this hire request
-            const isClient = hireRequest.clientId.toString() === userId;
-            const isBusiness = hireRequest.businessId.toString() === userId;
+            const isClient = hireRequest.clientId === userId;
+            const isBusiness = hireRequest.businessId === userId;
 
             if (!isClient && !isBusiness) {
                 socket.emit('error', { message: 'Not authorized to join this chat' });
@@ -91,17 +101,27 @@ io.on('connection', (socket) => {
             if (!text || !text.trim()) return;
 
             // Save message to database
-            const message = await Message.create({
+            const msgData = {
                 senderId,
                 receiverId,
                 hireRequestId,
                 text: text.trim(),
-            });
+                createdAt: new Date().toISOString()
+            };
+            const newMsgRef = db.collection('messages').doc();
+            await newMsgRef.set(msgData);
 
-            const populated = await message.populate('senderId', 'name');
+            let populatedData = { _id: newMsgRef.id, ...msgData };
+
+            // Fetch sender details
+            const senderDoc = await db.collection('users').doc(senderId).get();
+            populatedData.senderId = {
+                _id: senderId,
+                name: senderDoc.exists ? senderDoc.data().name : 'Unknown'
+            };
 
             // Emit to everyone in the room
-            io.to(hireRequestId).emit('newMessage', populated);
+            io.to(hireRequestId).emit('newMessage', populatedData);
         } catch (error) {
             socket.emit('error', { message: 'Failed to send message' });
         }
@@ -126,8 +146,6 @@ app.use(errorHandler);
 // ─── Start Server ───────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 5000;
 
-connectDB().then(() => {
-    server.listen(PORT, () => {
-        console.log(`Server running on port ${PORT}`);
-    });
+server.listen(PORT, () => {
+    console.log(`Server running safely on port ${PORT}`);
 });

@@ -1,21 +1,23 @@
-const Service = require('../models/Service');
-const BusinessProfile = require('../models/BusinessProfile');
+const { db } = require('../config/firebase');
 
 // @desc    Create a service
 // @route   POST /api/services
 exports.createService = async (req, res) => {
     try {
         const { title, description, price, deliveryTime } = req.body;
+        const newRef = db.collection('services').doc();
 
-        const service = await Service.create({
-            businessId: req.user._id,
+        const serviceData = {
+            businessId: req.user.uid,
             title,
             description,
-            price,
+            price: Number(price),
             deliveryTime,
-        });
+            createdAt: new Date().toISOString()
+        };
 
-        res.status(201).json(service);
+        await newRef.set(serviceData);
+        res.status(201).json({ _id: newRef.id, ...serviceData });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -26,43 +28,55 @@ exports.createService = async (req, res) => {
 exports.getServices = async (req, res) => {
     try {
         const { keyword, industry, minPrice, maxPrice, minRating, page, limit } = req.query;
-        let filter = {};
+        let servicesRef = db.collection('services');
+        let snapshot = await servicesRef.get();
+        let services = [];
+
+        // Manual filtering since Firestore doesn't support full-text search out of the box
+        // and complex ORs on multiple fields
+        snapshot.forEach((doc) => {
+            services.push({ _id: doc.id, ...doc.data() });
+        });
 
         if (keyword) {
-            filter.$text = { $search: keyword };
-        }
-
-        if (minPrice || maxPrice) {
-            filter.price = {};
-            if (minPrice) filter.price.$gte = Number(minPrice);
-            if (maxPrice) filter.price.$lte = Number(maxPrice);
-        }
-
-        const pageNum = parseInt(page, 10) || 1;
-        const limitNum = parseInt(limit, 10) || 20;
-        const startIndex = (pageNum - 1) * limitNum;
-
-        let services = await Service.find(filter)
-            .populate('businessId', 'name email')
-            .sort({ createdAt: -1 })
-            .skip(startIndex)
-            .limit(limitNum);
-
-        // If industry or minRating filter, we need profile data
-        if (industry || minRating) {
-            const profileFilter = {};
-            if (industry) profileFilter.industry = new RegExp(industry, 'i');
-            if (minRating) profileFilter.averageRating = { $gte: Number(minRating) };
-
-            const profiles = await BusinessProfile.find(profileFilter).select('userId');
-            const validBusinessIds = profiles.map((p) => p.userId.toString());
-
-            services = services.filter((s) =>
-                validBusinessIds.includes(s.businessId._id?.toString() || s.businessId.toString())
+            const kw = keyword.toLowerCase();
+            services = services.filter(s => 
+                (s.title && s.title.toLowerCase().includes(kw)) ||
+                (s.description && s.description.toLowerCase().includes(kw))
             );
         }
 
-        res.json(services);
+        if (minPrice) services = services.filter(s => s.price >= Number(minPrice));
+        if (maxPrice) services = services.filter(s => s.price <= Number(maxPrice));
+
+        // Industry and minRating require business profile lookup
+        if (industry || minRating) {
+            let profileQuery = db.collection('businessProfiles');
+            if (industry) profileQuery = profileQuery.where('industry', '==', industry);
+            if (minRating) profileQuery = profileQuery.where('averageRating', '>=', Number(minRating));
+            
+            const profileSnap = await profileQuery.get();
+            const validBusinessIds = profileSnap.docs.map(doc => doc.id);
+            
+            services = services.filter(s => validBusinessIds.includes(s.businessId));
+        }
+
+        // Populate businessId data
+        for (let i = 0; i < services.length; i++) {
+            const userDoc = await db.collection('users').doc(services[i].businessId).get();
+            if (userDoc.exists) {
+                services[i].businessId = { _id: userDoc.id, name: userDoc.data().name, email: userDoc.data().email };
+            }
+        }
+
+        // Sort by createdAt desc
+        services.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+        const pageNum = parseInt(page, 10) || 1;
+        const limitNum = Math.min(parseInt(limit, 10) || 20, 100);
+        const startIndex = (pageNum - 1) * limitNum;
+
+        res.json(services.slice(startIndex, startIndex + limitNum));
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -72,10 +86,13 @@ exports.getServices = async (req, res) => {
 // @route   GET /api/services/business/:businessId
 exports.getServicesByBusiness = async (req, res) => {
     try {
-        const services = await Service.find({
-            businessId: req.params.businessId,
-        }).sort({ createdAt: -1 });
-
+        const snapshot = await db.collection('services')
+            .where('businessId', '==', req.params.businessId)
+            .get();
+            
+        let services = snapshot.docs.map(doc => ({ _id: doc.id, ...doc.data() }));
+        services.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        
         res.json(services);
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -86,9 +103,13 @@ exports.getServicesByBusiness = async (req, res) => {
 // @route   GET /api/services/mine
 exports.getMyServices = async (req, res) => {
     try {
-        const services = await Service.find({ businessId: req.user._id }).sort({
-            createdAt: -1,
-        });
+        const snapshot = await db.collection('services')
+            .where('businessId', '==', req.user.uid)
+            .get();
+            
+        let services = snapshot.docs.map(doc => ({ _id: doc.id, ...doc.data() }));
+        services.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        
         res.json(services);
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -99,16 +120,21 @@ exports.getMyServices = async (req, res) => {
 // @route   GET /api/services/:id
 exports.getService = async (req, res) => {
     try {
-        const service = await Service.findById(req.params.id).populate(
-            'businessId',
-            'name email'
-        );
+        const doc = await db.collection('services').doc(req.params.id).get();
 
-        if (!service) {
+        if (!doc.exists) {
             return res.status(404).json({ message: 'Service not found' });
         }
 
-        res.json(service);
+        let data = { _id: doc.id, ...doc.data() };
+        
+        // Populate
+        const userDoc = await db.collection('users').doc(data.businessId).get();
+        if (userDoc.exists) {
+            data.businessId = { _id: userDoc.id, name: userDoc.data().name, email: userDoc.data().email };
+        }
+
+        res.json(data);
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -118,24 +144,28 @@ exports.getService = async (req, res) => {
 // @route   PUT /api/services/:id
 exports.updateService = async (req, res) => {
     try {
-        const service = await Service.findById(req.params.id);
+        const ref = db.collection('services').doc(req.params.id);
+        const doc = await ref.get();
 
-        if (!service) {
+        if (!doc.exists) {
             return res.status(404).json({ message: 'Service not found' });
         }
 
-        if (service.businessId.toString() !== req.user._id.toString()) {
+        let data = doc.data();
+
+        if (data.businessId !== req.user.uid) {
             return res.status(403).json({ message: 'Not authorized' });
         }
 
         const { title, description, price, deliveryTime } = req.body;
-        service.title = title || service.title;
-        service.description = description || service.description;
-        service.price = price !== undefined ? price : service.price;
-        service.deliveryTime = deliveryTime || service.deliveryTime;
+        
+        if (title) data.title = title;
+        if (description) data.description = description;
+        if (price !== undefined) data.price = Number(price);
+        if (deliveryTime) data.deliveryTime = deliveryTime;
 
-        await service.save();
-        res.json(service);
+        await ref.update(data);
+        res.json({ _id: doc.id, ...data });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -145,17 +175,18 @@ exports.updateService = async (req, res) => {
 // @route   DELETE /api/services/:id
 exports.deleteService = async (req, res) => {
     try {
-        const service = await Service.findById(req.params.id);
+        const ref = db.collection('services').doc(req.params.id);
+        const doc = await ref.get();
 
-        if (!service) {
+        if (!doc.exists) {
             return res.status(404).json({ message: 'Service not found' });
         }
 
-        if (service.businessId.toString() !== req.user._id.toString()) {
+        if (doc.data().businessId !== req.user.uid) {
             return res.status(403).json({ message: 'Not authorized' });
         }
 
-        await service.deleteOne();
+        await ref.delete();
         res.json({ message: 'Service deleted' });
     } catch (error) {
         res.status(500).json({ message: error.message });

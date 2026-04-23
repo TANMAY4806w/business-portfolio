@@ -1,20 +1,29 @@
-const jwt = require('jsonwebtoken');
-const User = require('../models/User');
-const { OAuth2Client } = require('google-auth-library');
+const { db, auth } = require('../config/firebase');
 
-const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
-
-const generateToken = (id) => {
-    return jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: '30d' });
-};
-
-// @desc    Register a new user
+// @desc    Register a new user profile in Firestore
 // @route   POST /api/auth/register
 exports.register = async (req, res) => {
     try {
-        const { name, email, password, role } = req.body;
+        const { name, email, role, uid } = req.body;
 
-        if (!name || !email || !password || !role) {
+        // Ensure token was passed to verify authenticity of this request
+        let token;
+        if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+            token = req.headers.authorization.split(' ')[1];
+        }
+
+        if (!token) {
+            return res.status(401).json({ message: 'No Firebase token provided' });
+        }
+
+        const decodedToken = await auth.verifyIdToken(token);
+
+        // Security check: Make sure UID from token matches body UID
+        if (decodedToken.uid !== uid) {
+            return res.status(403).json({ message: 'UID mismatch' });
+        }
+
+        if (!name || !email || !role) {
             return res.status(400).json({ message: 'All fields are required' });
         }
 
@@ -22,131 +31,48 @@ exports.register = async (req, res) => {
             return res.status(400).json({ message: 'Role must be business or client' });
         }
 
-        const existingUser = await User.findOne({ email });
-        if (existingUser) {
-            return res.status(400).json({ message: 'User already exists with this email' });
+        const userRef = db.collection('users').doc(uid);
+        const doc = await userRef.get();
+
+        if (doc.exists) {
+            return res.status(400).json({ message: 'User profile already exists' });
         }
 
-        const user = await User.create({ name, email, password, role });
+        const userData = {
+            name,
+            email,
+            role,
+            createdAt: new Date().toISOString()
+        };
+
+        await userRef.set(userData);
 
         res.status(201).json({
-            _id: user._id,
-            name: user.name,
-            email: user.email,
-            role: user.role,
-            token: generateToken(user._id),
+            _id: uid,
+            uid: uid,
+            name,
+            email,
+            role
         });
     } catch (error) {
+        console.error('Register Auth Controller Error:', error);
         res.status(500).json({ message: error.message });
     }
 };
 
-// @desc    Login user
-// @route   POST /api/auth/login
-exports.login = async (req, res) => {
-    try {
-        const { email, password } = req.body;
-
-        if (!email || !password) {
-            return res.status(400).json({ message: 'Email and password are required' });
-        }
-
-        const user = await User.findOne({ email }).select('+password');
-        if (!user) {
-            return res.status(401).json({ message: 'Invalid credentials' });
-        }
-
-        const isMatch = await user.comparePassword(password);
-        if (!isMatch) {
-            return res.status(401).json({ message: 'Invalid credentials' });
-        }
-
-        res.json({
-            _id: user._id,
-            name: user.name,
-            email: user.email,
-            role: user.role,
-            token: generateToken(user._id),
-        });
-    } catch (error) {
-        res.status(500).json({ message: error.message });
-    }
-};
-
-// @desc    Get current user
+// @desc    Get current user profile
 // @route   GET /api/auth/me
+// Note: This route uses the main `protect` middleware which guarantees `req.user` exists.
 exports.getMe = async (req, res) => {
     try {
         res.json({
-            _id: req.user._id,
+            _id: req.user.uid,
+            uid: req.user.uid,
             name: req.user.name,
             email: req.user.email,
             role: req.user.role,
         });
     } catch (error) {
         res.status(500).json({ message: error.message });
-    }
-};
-
-// @desc    Google Login/Signup
-// @route   POST /api/auth/google
-exports.googleLogin = async (req, res) => {
-    try {
-        const { token, role } = req.body;
-        if (!token) {
-            return res.status(400).json({ message: 'Google token is required' });
-        }
-
-        // Verify the token
-        const ticket = await client.verifyIdToken({
-            idToken: token,
-            audience: process.env.GOOGLE_CLIENT_ID,
-        });
-        const payload = ticket.getPayload();
-        const { sub: googleId, email, name, picture: avatar } = payload;
-
-        let user = await User.findOne({ email });
-
-        if (user) {
-            // Existing user - update details if needed
-            let updated = false;
-            if (!user.googleId) {
-                user.googleId = googleId;
-                if (!user.avatar) user.avatar = avatar;
-                updated = true;
-            }
-            // If role is explicitly provided (via Register page) and differs, update it
-            if (role && ['business', 'client'].includes(role) && user.role !== role) {
-                user.role = role;
-                updated = true;
-            }
-            if (updated) {
-                await user.save();
-            }
-        } else {
-            // New user registration
-            if (!role || !['business', 'client'].includes(role)) {
-                return res.status(400).json({ message: 'Role (business or client) is required for new Google registration' });
-            }
-            user = await User.create({
-                name,
-                email,
-                role,
-                googleId,
-                avatar,
-            });
-        }
-
-        res.json({
-            _id: user._id,
-            name: user.name,
-            email: user.email,
-            role: user.role,
-            avatar: user.avatar,
-            token: generateToken(user._id),
-        });
-    } catch (error) {
-        console.error('Google Auth Error:', error.message);
-        res.status(500).json({ message: 'Failed to authenticate with Google' });
     }
 };

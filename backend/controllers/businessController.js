@@ -1,51 +1,64 @@
-const BusinessProfile = require('../models/BusinessProfile');
+const { db } = require('../config/firebase');
 
 // @desc    Create or update business profile
 // @route   POST /api/business/profile
 exports.createOrUpdateProfile = async (req, res) => {
     try {
         const { companyName, description, industry, logo, portfolioProjects } = req.body;
+        const profileRef = db.collection('businessProfiles').doc(req.user.uid);
+        const profileDoc = await profileRef.get();
 
-        let profile = await BusinessProfile.findOne({ userId: req.user._id });
+        const profileData = {
+            userId: req.user.uid,
+            companyName: companyName || '',
+            description: description || '',
+            industry: industry || '',
+            logo: logo || '',
+            portfolioProjects: portfolioProjects || [],
+            updatedAt: new Date().toISOString()
+        };
 
-        if (profile) {
-            profile.companyName = companyName || profile.companyName;
-            profile.description = description || profile.description;
-            profile.industry = industry || profile.industry;
-            profile.logo = logo !== undefined ? logo : profile.logo;
-            if (portfolioProjects) profile.portfolioProjects = portfolioProjects;
-            await profile.save();
+        if (profileDoc.exists) {
+            // Update
+            const existing = profileDoc.data();
+            profileData.companyName = companyName || existing.companyName;
+            profileData.description = description || existing.description;
+            profileData.industry = industry || existing.industry;
+            profileData.logo = logo !== undefined ? logo : existing.logo;
+            if (portfolioProjects) profileData.portfolioProjects = portfolioProjects;
+            
+            await profileRef.update(profileData);
         } else {
-            profile = await BusinessProfile.create({
-                userId: req.user._id,
-                companyName,
-                description,
-                industry,
-                logo: logo || '',
-                portfolioProjects: portfolioProjects || [],
-            });
+            // Create
+            profileData.createdAt = new Date().toISOString();
+            profileData.averageRating = 0;
+            profileData.totalReviews = 0;
+            await profileRef.set(profileData);
         }
 
-        res.status(200).json(profile);
+        res.status(200).json({ _id: req.user.uid, ...profileData });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
 };
 
 // @desc    Get my business profile
-// @route   GET /api/business/profile/me
+// @route   GET /api/business/profile/me/data
 exports.getMyProfile = async (req, res) => {
     try {
-        const profile = await BusinessProfile.findOne({ userId: req.user._id }).populate(
-            'userId',
-            'name email'
-        );
+        const profileDoc = await db.collection('businessProfiles').doc(req.user.uid).get();
 
-        if (!profile) {
+        if (!profileDoc.exists) {
             return res.status(404).json({ message: 'Profile not found' });
         }
+        
+        let data = profileDoc.data();
+        const userDocRef = await db.collection('users').doc(req.user.uid).get();
+        const userData = userDocRef.exists ? userDocRef.data() : { name: req.user.name, email: req.user.email };
+        data.userId = { _id: req.user.uid, name: userData.name, email: userData.email };
+        data.stripeAccountId = userData.stripeAccountId || null;
 
-        res.json(profile);
+        res.json({ _id: profileDoc.id, ...data });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -55,15 +68,20 @@ exports.getMyProfile = async (req, res) => {
 // @route   GET /api/business/profile/:userId
 exports.getProfileByUserId = async (req, res) => {
     try {
-        const profile = await BusinessProfile.findOne({
-            userId: req.params.userId,
-        }).populate('userId', 'name email');
+        const userId = req.params.userId;
+        const profileDoc = await db.collection('businessProfiles').doc(userId).get();
 
-        if (!profile) {
+        if (!profileDoc.exists) {
             return res.status(404).json({ message: 'Profile not found' });
         }
 
-        res.json(profile);
+        const userDoc = await db.collection('users').doc(userId).get();
+        const userData = userDoc.exists ? userDoc.data() : { name: 'Unknown', email: '' };
+
+        let data = profileDoc.data();
+        data.userId = { _id: userId, name: userData.name, email: userData.email };
+
+        res.json({ _id: profileDoc.id, ...data });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -74,21 +92,32 @@ exports.getProfileByUserId = async (req, res) => {
 exports.getAllProfiles = async (req, res) => {
     try {
         const { industry, minRating, page, limit } = req.query;
-        const filter = {};
+        let query = db.collection('businessProfiles');
 
-        if (industry) filter.industry = new RegExp(industry, 'i');
-        if (minRating) filter.averageRating = { $gte: Number(minRating) };
+        if (industry) {
+            query = query.where('industry', '==', industry);
+        }
+        if (minRating) {
+            query = query.where('averageRating', '>=', Number(minRating));
+        }
 
+        const snapshot = await query.get();
+        let profiles = [];
+        
+        for (const doc of snapshot.docs) {
+            let data = doc.data();
+            const userDoc = await db.collection('users').doc(data.userId).get();
+            const userData = userDoc.exists ? userDoc.data() : { name: 'Unknown', email: '' };
+            data.userId = { _id: data.userId, name: userData.name, email: userData.email };
+            profiles.push({ _id: doc.id, ...data });
+        }
+
+        // Manual Pagination for Firestore
         const pageNum = parseInt(page, 10) || 1;
-        const limitNum = parseInt(limit, 10) || 20;
+        const limitNum = Math.min(parseInt(limit, 10) || 20, 100);
         const startIndex = (pageNum - 1) * limitNum;
-
-        const profiles = await BusinessProfile.find(filter)
-            .populate('userId', 'name email')
-            .skip(startIndex)
-            .limit(limitNum);
-
-        res.json(profiles);
+        
+        res.json(profiles.slice(startIndex, startIndex + limitNum));
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -99,16 +128,27 @@ exports.getAllProfiles = async (req, res) => {
 exports.addPortfolioProject = async (req, res) => {
     try {
         const { title, description, imageUrl } = req.body;
+        const profileRef = db.collection('businessProfiles').doc(req.user.uid);
+        const profileDoc = await profileRef.get();
 
-        const profile = await BusinessProfile.findOne({ userId: req.user._id });
-        if (!profile) {
+        if (!profileDoc.exists) {
             return res.status(404).json({ message: 'Profile not found. Create one first.' });
         }
 
-        profile.portfolioProjects.push({ title, description, imageUrl: imageUrl || '' });
-        await profile.save();
+        let profileData = profileDoc.data();
+        const newProject = {
+            _id: db.collection('businessProfiles').doc().id, // Generate random id
+            title,
+            description,
+            imageUrl: imageUrl || ''
+        };
+        
+        profileData.portfolioProjects = profileData.portfolioProjects || [];
+        profileData.portfolioProjects.push(newProject);
+        
+        await profileRef.update({ portfolioProjects: profileData.portfolioProjects });
 
-        res.status(201).json(profile);
+        res.status(201).json({ _id: profileDoc.id, ...profileData });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -118,17 +158,21 @@ exports.addPortfolioProject = async (req, res) => {
 // @route   DELETE /api/business/profile/project/:projectId
 exports.deletePortfolioProject = async (req, res) => {
     try {
-        const profile = await BusinessProfile.findOne({ userId: req.user._id });
-        if (!profile) {
+        const profileRef = db.collection('businessProfiles').doc(req.user.uid);
+        const profileDoc = await profileRef.get();
+
+        if (!profileDoc.exists) {
             return res.status(404).json({ message: 'Profile not found' });
         }
 
-        profile.portfolioProjects = profile.portfolioProjects.filter(
-            (p) => p._id.toString() !== req.params.projectId
+        let profileData = profileDoc.data();
+        profileData.portfolioProjects = profileData.portfolioProjects.filter(
+            (p) => p._id !== req.params.projectId
         );
-        await profile.save();
+        
+        await profileRef.update({ portfolioProjects: profileData.portfolioProjects });
 
-        res.json(profile);
+        res.json({ _id: profileDoc.id, ...profileData });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }

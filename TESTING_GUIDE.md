@@ -73,7 +73,7 @@ This guide walks through every feature of the application with **exact sample in
 | Field | Value |
 |-------|-------|
 | Title | `Custom Web Application` |
-| Description | `Full-stack web application built with React, Node.js, and MongoDB. Includes responsive design, authentication, and deployment.` |
+| Description | `Full-stack web application built with React, Node.js, and Firebase. Includes responsive design, authentication, and deployment.` |
 | Price | `1200` |
 | Delivery Time | `14-21 days` |
 
@@ -187,7 +187,26 @@ This guide walks through every feature of the application with **exact sample in
 2. Click **Requests** in the navbar
 3. ✅ **Expected:** One pending hire request from "Priya Sharma"
 4. Click **Accept**
-5. ✅ **Expected:** Status changes to **accepted** (blue badge). "Chat" and "Mark Completed" buttons appear.
+5. ✅ **Expected:** Status changes to **accepted** (blue badge).
+6. 🚀 **SOW & Automation:** At this exact moment, the backend magically generates a **Statement of Work (SOW) PDF** and emails it to the Client along with a secure payment link!
+
+---
+
+## Test 10: Complete Upfront Payment (Simulated Gateway)
+
+1. **Logout** → **Login** as the Client (`priya@test.com`)
+2. Click **Requests** in the navbar
+3. ✅ **Expected:** The hire request is now "accepted". Check the "I agree to the SOW terms" box.
+4. Click the **Pay Now** button.
+5. ✅ **Expected:** A beautiful **Secure Checkout** modal appears.
+6. Enter dummy credit card details (the UI will auto-format them):
+   - **Name:** `Priya Sharma`
+   - **Card Number:** `4242 4242 4242 4242`
+   - **Expiry:** `12/25`
+   - **CVC:** `123`
+7. Click **Pay**
+8. ✅ **Expected:** The button shows a loading spinner ("Processing..."). After 2 seconds, it shows a green "Payment Successful!" checkmark, the modal closes, and the hire request updates to **Paid** with an **Invoice** button.
+9. 🚀 **Backend Automation:** Look at your backend terminal! You will see a highly detailed `SECURE PAYMENT GATEWAY INITIATED` log sequence simulating bank authorization. It instantly updates the DB, generates a beautiful **Official Invoice PDF**, and emails it to both the Client and Business!
 
 ---
 

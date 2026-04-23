@@ -1,5 +1,14 @@
 import { createContext, useContext, useState, useEffect } from 'react';
-import { loginUser, registerUser, googleAuth } from '../services/api';
+import {
+    signInWithEmailAndPassword,
+    createUserWithEmailAndPassword,
+    signInWithPopup,
+    GoogleAuthProvider,
+    onAuthStateChanged,
+    signOut
+} from 'firebase/auth';
+import { auth } from '../config/firebase';
+import { getMe, registerUser } from '../services/api';
 
 const AuthContext = createContext(null);
 
@@ -11,59 +20,85 @@ export const useAuth = () => {
 
 export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
-    const [token, setToken] = useState(null);
     const [loading, setLoading] = useState(true);
 
-    // Load from localStorage on mount
+    // Listen to Firebase Auth State
     useEffect(() => {
-        const stored = localStorage.getItem('bp_user');
-        if (stored) {
-            try {
-                const parsed = JSON.parse(stored);
-                setUser(parsed);
-                setToken(parsed.token);
-            } catch {
-                localStorage.removeItem('bp_user');
+        const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+            if (firebaseUser) {
+                try {
+                    // Fetch custom user profile (role, name) from our backend
+                    const { data } = await getMe();
+                    setUser(data);
+                } catch (error) {
+                    console.error("Backend profile fetch failed. User might be mid-registration.", error);
+                    // Do not log out immediately during registration flow!
+                }
+            } else {
+                setUser(null);
             }
-        }
-        setLoading(false);
+            setLoading(false);
+        });
+
+        return () => unsubscribe();
     }, []);
 
     const login = async (email, password) => {
-        const { data } = await loginUser({ email, password });
+        await signInWithEmailAndPassword(auth, email, password);
+        const { data } = await getMe();
         setUser(data);
-        setToken(data.token);
-        localStorage.setItem('bp_user', JSON.stringify(data));
         return data;
     };
 
     const register = async (name, email, password, role) => {
-        const { data } = await registerUser({ name, email, password, role });
+        // 1. Create user in Firebase Auth
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        // 2. We are now logged in to Firebase. The API interceptor will attach the new token.
+        // 3. Inform the backend to create the Firestore database profile
+        const { data } = await registerUser({ name, email, role, uid: userCredential.user.uid });
         setUser(data);
-        setToken(data.token);
-        localStorage.setItem('bp_user', JSON.stringify(data));
         return data;
     };
 
-    const googleLogin = async (token, role) => {
-        const { data } = await googleAuth({ token, role });
-        setUser(data);
-        setToken(data.token);
-        localStorage.setItem('bp_user', JSON.stringify(data));
-        return data;
+    const googleLogin = async (role) => {
+        const provider = new GoogleAuthProvider();
+        const userCredential = await signInWithPopup(auth, provider);
+        
+        // CRITICAL FIX: Firebase race condition. We must wait for auth state to fully initialize 
+        // so that auth.currentUser is not null when the API interceptor runs!
+        await auth.authStateReady();
+        
+        try {
+            // Check if profile exists, if not, create it
+            const { data } = await getMe();
+            setUser(data);
+            return data;
+        } catch (error) {
+            if (error.response && error.response.status === 404) {
+                // User doesn't exist in backend, register them
+                const { data } = await registerUser({
+                    name: userCredential.user.displayName,
+                    email: userCredential.user.email,
+                    role: role || 'client', // Google auth defaults to client if not specified
+                    uid: userCredential.user.uid
+                });
+                setUser(data);
+                return data;
+            }
+            throw error;
+        }
     };
 
-    const logout = () => {
+    const logout = async () => {
+        await signOut(auth);
         setUser(null);
-        setToken(null);
-        localStorage.removeItem('bp_user');
     };
 
     return (
         <AuthContext.Provider
-            value={{ user, token, loading, login, register, googleLogin, logout }}
+            value={{ user, loading, login, register, googleLogin, logout }}
         >
-            {children}
+            {!loading && children}
         </AuthContext.Provider>
     );
 };

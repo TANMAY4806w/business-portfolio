@@ -22,6 +22,15 @@ const hireRequestSchema = new mongoose.Schema(
             enum: ['pending', 'accepted', 'rejected', 'completed'],
             default: 'pending',
         },
+        paymentStatus: {
+            type: String,
+            enum: ['pending', 'paid', 'refunded'],
+            default: 'pending',
+        },
+        stripeSessionId: {
+            type: String,
+            default: null,
+        },
     },
     { timestamps: true }
 );

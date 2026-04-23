@@ -1,8 +1,8 @@
 # 🏢 Business Portfolio
 
-A full-stack **MERN** (MongoDB, Express, React, Node.js) web application where **businesses** create digital portfolios and **clients** can browse, hire, chat, and review them.
+A full-stack web application built with **Firebase, Express, React, and Node.js** where **businesses** create digital portfolios and **clients** can browse, hire, chat, and review them.
 
-![Home Page](https://img.shields.io/badge/status-production--ready-brightgreen) ![License](https://img.shields.io/badge/license-MIT-blue) ![Node](https://img.shields.io/badge/node-18%2B-green) ![MongoDB](https://img.shields.io/badge/database-MongoDB-47A248)
+![Home Page](https://img.shields.io/badge/status-production--ready-brightgreen) ![License](https://img.shields.io/badge/license-MIT-blue) ![Node](https://img.shields.io/badge/node-18%2B-green) ![Firebase](https://img.shields.io/badge/database-Firebase-FFCA28)
 
 ---
 
@@ -47,10 +47,8 @@ A full-stack **MERN** (MongoDB, Express, React, Node.js) web application where *
 |-----------|---------|
 | **Node.js** | Runtime environment |
 | **Express.js** | Web framework |
-| **MongoDB** | Database |
-| **Mongoose** | ODM (Object Data Modeling) |
-| **JWT** | Authentication tokens |
-| **bcryptjs** | Password hashing |
+| **Firebase Admin SDK** | Database (Firestore) & Auth Verification |
+| **Firebase Services** | Auth, Firestore, Mail Extension |
 | **Socket.io** | Real-time WebSocket communication |
 | **cors** | Cross-origin resource sharing |
 | **dotenv** | Environment variable management |
@@ -74,7 +72,7 @@ A full-stack **MERN** (MongoDB, Express, React, Node.js) web application where *
 Business Portfolio/
 ├── backend/
 │   ├── config/
-│   │   └── db.js                 # MongoDB connection
+│   │   └── firebase.js           # Firebase Admin config
 │   ├── controllers/
 │   │   ├── authController.js     # Register, Login, GetMe
 │   │   ├── businessController.js # Profile CRUD, portfolio projects
@@ -148,9 +146,8 @@ Business Portfolio/
 ## ✅ Prerequisites
 
 - **Node.js** 18+ → [Download](https://nodejs.org/)
-- **MongoDB** (choose one):
-  - **Local**: [MongoDB Community Server](https://www.mongodb.com/try/download/community)
-  - **Cloud** (recommended): [MongoDB Atlas](https://www.mongodb.com/cloud/atlas) (free M0 tier)
+- **Firebase Project** (Free Tier):
+  - Requires a Firebase account and project setup at [console.firebase.google.com](https://console.firebase.google.com)
 - **Git** → [Download](https://git-scm.com/)
 
 ---
@@ -164,42 +161,57 @@ git clone https://github.com/TANMAY4806w/business-portfolio.git
 cd business-portfolio
 ```
 
-### 2. Setup Backend
+### 2. Setup & Environment
 
+**Backend:**
 ```bash
 cd backend
-
 # Copy environment template
 cp .env.example .env
+# Important: Ensure you add your Firebase Service Account JSON as instructed in the guide!
+```
 
-# Edit .env with your values (see Environment Variables section below)
+### 3. Running the App (1st Time Only - Installation)
 
-# Install dependencies
+You must install all Node modules the very first time you clone the repository.
+
+**Terminal 1 (Backend):**
+```bash
+cd backend
 npm install
+npm start
+```
+*The backend runs on **http://localhost:5000***
 
-# Start the backend server
+**Terminal 2 (Frontend):**
+```bash
+cd frontend
+npm install
+npm run dev
+```
+*The frontend runs on **http://localhost:5173***
+
+### 4. Running the App (2nd Time & Subsequent Runs)
+
+If you have already installed the dependencies previously, you just need to start your development servers:
+
+**Terminal 1 (Backend):**
+```bash
+cd backend
 npm start
 ```
 
-The backend runs on **http://localhost:5000**
-
-### 3. Setup Frontend
-
-Open a **new terminal**:
-
+**Terminal 2 (Frontend):**
 ```bash
 cd frontend
-
-# Install dependencies
-npm install
-
-# Start the development server
 npm run dev
 ```
 
-The frontend runs on **http://localhost:5173**
+### 5. No Third-Party Webhooks Needed!
 
-### 4. Open the app
+You do **not** need to install Stripe or run any webhook listeners. The platform comes with a built-in **Simulated Payment Gateway** that natively simulates bank authorization delays, updates the database, and generates/emails PDF Invoices directly from the Node.js backend.
+
+### 6. Open the app
 
 Go to **http://localhost:5173** in your browser. 🎉
 
@@ -213,41 +225,46 @@ Create a `.env` file in the `backend/` directory:
 
 ```env
 PORT=5000
-MONGO_URI=mongodb+srv://<username>:<password>@cluster0.xxxxx.mongodb.net/business-portfolio?retryWrites=true&w=majority
-JWT_SECRET=your_super_secret_key_here
-GOOGLE_CLIENT_ID=your_google_client_id_here
 CLIENT_URL=http://localhost:5173
+
+# Firebase Production Keys
+FIREBASE_PROJECT_ID=your_project_id
+FIREBASE_CLIENT_EMAIL=your_client_email
+FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n..."
+
+# Email Configuration
+EMAIL_USER=your_platform_email@gmail.com
+EMAIL_PASS=your_app_password
 ```
 
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `PORT` | Yes | Server port (default: 5000) |
-| `MONGO_URI` | Yes | MongoDB connection string |
-| `JWT_SECRET` | Yes | Secret key for JWT token signing (use a long random string) |
-| `GOOGLE_CLIENT_ID` | Yes | Used to verify Google Sign-In secure tokens |
+| `FIREBASE_*` | Yes | Firebase Admin SDK credentials |
+| `EMAIL_*` | Yes | Nodemailer credentials for sending invoices |
 | `CLIENT_URL` | No | Frontend URL for CORS (auto-includes localhost) |
 
-### Frontend Environment (Required for Google Auth)
+### Frontend Environment (Required for Firebase)
 
 Create a `.env` file in the `frontend/` directory:
 
 ```env
-VITE_GOOGLE_CLIENT_ID=your_google_client_id_here
-VITE_API_URL=https://your-backend.onrender.com/api
-VITE_SOCKET_URL=https://your-backend.onrender.com
+VITE_FIREBASE_API_KEY=your_api_key
+VITE_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
+VITE_FIREBASE_PROJECT_ID=your_project_id
+VITE_FIREBASE_STORAGE_BUCKET=your_project.appspot.com
+VITE_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
+VITE_FIREBASE_APP_ID=your_app_id
 ```
 
-> **Note:** For local development, `VITE_API_URL` and `VITE_SOCKET_URL` are not needed — Vite proxies API calls to localhost automatically. However, `VITE_GOOGLE_CLIENT_ID` is strictly required for Google Auth to work.
+### Firebase Setup (Cloud — Free)
 
-### MongoDB Atlas Setup (Cloud — Free)
-
-1. Go to [mongodb.com/cloud/atlas](https://www.mongodb.com/cloud/atlas) → Create free account
-2. Create a free **M0 cluster**
-3. **Database Access** → Add user with read/write permissions
-4. **Network Access** → Add `0.0.0.0/0` (allow all IPs) or your specific IP
-5. **Connect** → **Drivers** → Copy connection string
-6. Replace `<username>` and `<password>` in the string
-7. Paste into `backend/.env` as `MONGO_URI`
+1. Go to the [Firebase Console](https://console.firebase.google.com/) and create a project.
+2. Enable **Firestore Database** (in Test Mode).
+3. Enable **Authentication** (Email/Password).
+4. Go to **Project Settings → Service Accounts** and generate a new private key.
+5. Use the JSON file to populate your `backend/.env`.
+6. Go to **Project Settings → General**, add a Web App, and use the config to populate your `frontend/.env`.
 
 ---
 
@@ -435,7 +452,7 @@ reviewText    : String
    - **Root Directory:** `backend`
    - **Build Command:** `npm install`
    - **Start Command:** `node server.js`
-5. Add environment variables: `PORT`, `MONGO_URI`, `JWT_SECRET`, `CLIENT_URL`
+5. Add environment variables: `PORT`, `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY`
 6. Deploy
 
 ### Frontend → Vercel (Free)
@@ -456,9 +473,8 @@ reviewText    : String
 
 | Issue | Solution |
 |-------|----------|
-| `MongoDB connection error` | Check `MONGO_URI` in `.env`. Make sure MongoDB is running or Atlas IP is whitelisted |
+| `Firebase app/invalid-credential` | Ensure your `FIREBASE_PRIVATE_KEY` is fully copied into `.env` exactly with the quotes and newlines. |
 | `CORS error` | Make sure `CLIENT_URL` matches your frontend URL exactly |
-| `JWT error` | Check `JWT_SECRET` is set in `.env` |
 | `Socket.io not connecting` | Check frontend `VITE_SOCKET_URL` matches backend URL |
 | `npm install` fails | Delete `node_modules` and `package-lock.json`, then run `npm install` again |
 | `Port already in use` | Kill the process on that port or change `PORT` in `.env` |

@@ -7,7 +7,7 @@ import Sidebar from '../components/Sidebar';
 const BusinessDashboard = () => {
     const { user } = useAuth();
     const location = useLocation();
-    const [stats, setStats] = useState({ services: 0, hires: 0, pending: 0, rating: 0 });
+    const [stats, setStats] = useState({ services: 0, hires: 0, pending: 0, rating: 0, earnings: 0 });
     const [profile, setProfile] = useState(null);
     const [loading, setLoading] = useState(true);
 
@@ -31,7 +31,8 @@ const BusinessDashboard = () => {
                     services: services.length,
                     hires: hires.length,
                     pending: hires.filter((h) => h.status === 'pending').length,
-                    rating: profileRes.status === 'fulfilled' ? profileRes.value.data.averageRating : 0,
+                    rating: profileRes.status === 'fulfilled' && profileRes.value.data.averageRating ? profileRes.value.data.averageRating : 0,
+                    earnings: profileRes.status === 'fulfilled' && profileRes.value.data.totalEarnings ? profileRes.value.data.totalEarnings : 0,
                 });
             } catch (err) {
                 console.error(err);
@@ -45,11 +46,15 @@ const BusinessDashboard = () => {
 
     const statCards = [
         {
+            label: 'Total Earnings', value: `$${stats.earnings.toFixed(2)}`, color: 'from-green-600 to-emerald-400',
+            icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        },
+        {
             label: 'Services', value: stats.services, color: 'from-blue-500 to-cyan-500',
             icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
         },
         {
-            label: 'Total Hires', value: stats.hires, color: 'from-green-500 to-emerald-500',
+            label: 'Total Hires', value: stats.hires, color: 'from-indigo-500 to-purple-500',
             icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
         },
         {
@@ -83,7 +88,7 @@ const BusinessDashboard = () => {
                                 <div className="w-8 h-8 border-2 border-accent-500 border-t-transparent rounded-full animate-spin" />
                             </div>
                         ) : (
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
                                 {statCards.map((card, i) => (
                                     <div key={card.label} className="glass-card p-5"
                                         style={{ animationDelay: `${i * 0.1}s` }}>

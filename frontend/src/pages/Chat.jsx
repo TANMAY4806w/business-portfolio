@@ -118,20 +118,31 @@ const Chat = () => {
     return (
         <div className="max-w-3xl mx-auto px-4 py-8 h-[calc(100vh-4rem)] flex flex-col">
             {/* Chat Header */}
-            <div className="glass-card p-4 mb-4 flex items-center gap-4 shrink-0">
-                <div className="w-10 h-10 gradient-bg rounded-full flex items-center justify-center text-white font-bold">
+            <div className="glass-card p-4 mb-4 flex items-center gap-4 shrink-0 shadow-lg border-b border-dark-700">
+                <Link to="/hire-requests" className="p-2 -ml-2 rounded-full hover:bg-dark-700 text-dark-300 transition-colors">
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                    </svg>
+                </Link>
+                <div className="w-12 h-12 gradient-bg rounded-full flex items-center justify-center text-white font-bold text-lg shadow-inner ring-2 ring-dark-800">
                     {otherUser?.name?.charAt(0).toUpperCase()}
                 </div>
                 <div>
-                    <h2 className="font-bold text-dark-100">{otherUser?.name}</h2>
-                    <p className="text-xs text-dark-400">
-                        {hireRequest?.serviceId?.title} • {hireRequest?.status}
+                    <h2 className="font-bold text-white text-lg leading-tight">{otherUser?.name}</h2>
+                    <p className="text-xs text-accent-400 font-medium mt-0.5 flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-accent-500"></span>
+                        {hireRequest?.serviceId?.title}
                     </p>
                 </div>
                 {typing && (
-                    <span className="ml-auto text-xs text-accent-400 animate-pulse">
-                        {typing} is typing...
-                    </span>
+                    <div className="ml-auto flex items-center gap-2 bg-dark-800 px-3 py-1.5 rounded-full border border-dark-700">
+                        <span className="text-[10px] text-dark-300 font-medium uppercase tracking-wider">{typing}</span>
+                        <div className="flex gap-1">
+                            <div className="w-1.5 h-1.5 bg-accent-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                            <div className="w-1.5 h-1.5 bg-accent-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                            <div className="w-1.5 h-1.5 bg-accent-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                        </div>
+                    </div>
                 )}
             </div>
 
@@ -173,17 +184,18 @@ const Chat = () => {
             </div>
 
             {/* Input */}
-            <form onSubmit={handleSend} className="glass-card p-3 flex gap-3 shrink-0">
+            <form onSubmit={handleSend} className="glass-card p-3 flex gap-3 shrink-0 border-t border-dark-700 shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.5)]">
                 <input type="text" value={newMsg} onChange={handleTyping}
-                    placeholder="Type a message..."
-                    className="flex-1 bg-dark-800 px-4 py-3 rounded-xl text-dark-100
-                        placeholder-dark-400 focus:outline-none focus:ring-1 focus:ring-accent-500
-                        border border-dark-600 transition-all" />
+                    placeholder="Message..."
+                    className="flex-1 bg-dark-900 px-5 py-3.5 rounded-2xl text-white
+                        placeholder-dark-400 focus:outline-none focus:ring-2 focus:ring-accent-500/50
+                        border border-dark-700 transition-all shadow-inner" />
                 <button type="submit" disabled={!newMsg.trim()}
-                    className="btn-primary !px-5 !py-3 !rounded-xl">
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                            d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                    className={`px-5 py-3.5 rounded-2xl transition-all flex items-center justify-center
+                        ${newMsg.trim() ? 'bg-accent-500 text-dark-900 shadow-lg shadow-accent-500/20 hover:scale-105 hover:bg-accent-400' 
+                                        : 'bg-dark-800 text-dark-500 cursor-not-allowed'}`}>
+                    <svg className="w-6 h-6 transform rotate-90" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
                     </svg>
                 </button>
             </form>
