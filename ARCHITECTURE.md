@@ -18,7 +18,7 @@ graph TB
         SOCK_S[Socket.io Server]
     end
 
-    subgraph Database["🗄 MongoDB Atlas"]
+    subgraph Database["🗄 Firebase Firestore"]
         USERS[(Users)]
         BP[(BusinessProfiles)]
         SVC[(Services)]
@@ -51,11 +51,11 @@ sequenceDiagram
     participant B as Browser
     participant V as Vite Proxy
     participant E as Express Server
-    participant M as MongoDB
+    participant M as Firebase Firestore
 
     B->>V: GET /api/services
     V->>E: Proxy to localhost:5000
-    E->>M: Service.find()
+    E->>M: db.collection('services').get()
     M-->>E: Service documents
     E-->>V: JSON response
     V-->>B: Render service cards
@@ -70,12 +70,12 @@ sequenceDiagram
     participant U as User
     participant R as React App
     participant A as /api/auth
-    participant DB as MongoDB
+    participant DB as Firebase Auth
 
     U->>R: Fill register form
     R->>A: POST /register {name, email, password, role}
-    A->>DB: Create user (password hashed)
-    DB-->>A: User document
+    A->>DB: auth.createUser() via Firebase Admin
+    DB-->>A: User record (uid)
     A-->>R: {user, token}
     R->>R: Store in localStorage
     R->>R: Set AuthContext
