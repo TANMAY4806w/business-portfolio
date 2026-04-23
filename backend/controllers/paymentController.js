@@ -34,7 +34,7 @@ exports.mockPayment = async (req, res) => {
         // 🚀 Highly detailed "Production-Ready" Terminal Logs
         const timestamp = new Date().toISOString();
         const txnRef = `TXN-${Math.floor(Math.random() * 1000000000)}`;
-        
+
         console.log(`\n========================================================`);
         console.log(`[${timestamp}] 💳 SECURE PAYMENT GATEWAY INITIATED`);
         console.log(`========================================================`);
@@ -52,7 +52,7 @@ exports.mockPayment = async (req, res) => {
 
         // Update payment status to paid
         await hireRef.update({ paymentStatus: 'paid' });
-        
+
         console.log(`[WEBHOOK] 🟢 Simulating incoming webhook: 'checkout.session.completed'`);
         console.log(`[DB] Successfully mutated HireRequest -> paymentStatus: 'paid'`);
 
@@ -68,10 +68,10 @@ exports.mockPayment = async (req, res) => {
         // Fetch populated data for email
         let populatedHire = { _id: hireRequestId, ...hireData };
         populatedHire.serviceId = { _id: hireData.serviceId, ...serviceData };
-        
+
         const clientDoc = await db.collection('users').doc(hireData.clientId).get();
         populatedHire.clientId = { _id: hireData.clientId, ...(clientDoc.exists ? clientDoc.data() : {}) };
-        
+
         const businessDoc = await db.collection('users').doc(hireData.businessId).get();
         populatedHire.businessId = { _id: hireData.businessId, ...(businessDoc.exists ? businessDoc.data() : {}) };
 
@@ -79,7 +79,7 @@ exports.mockPayment = async (req, res) => {
         try {
             console.log(`[PDF] Generating Official Invoice document... [OK]`);
             const invoiceBuffer = await generateInvoicePdf(populatedHire);
-            
+
             console.log(`[EMAIL] Dispatching secure Invoice to Client & Business via SMTP...`);
             await sendPaymentReceipt(
                 populatedHire.clientId,
@@ -111,7 +111,7 @@ exports.onboardFreelancer = async (req, res) => {
         const userRef = db.collection('users').doc(req.user.uid);
         const userDoc = await userRef.get();
         if (!userDoc.exists) return res.status(404).json({ message: 'User not found' });
-        
+
         let userData = userDoc.data();
         let accountId = userData.stripeAccountId;
 
@@ -183,7 +183,7 @@ exports.createCheckoutSession = async (req, res) => {
         const businessData = businessDoc.data();
         const businessName = businessData.name || 'Business';
         const businessStripeId = businessData.stripeAccountId;
-        
+
         if (!businessStripeId) {
             return res.status(400).json({ message: 'This business has not setup their bank account yet, so they cannot receive payments.' });
         }
@@ -260,7 +260,7 @@ exports.webhook = async (req, res) => {
         try {
             const hireRef = db.collection('hireRequests').doc(hireRequestId);
             const hireDoc = await hireRef.get();
-                
+
             if (hireDoc.exists) {
                 const hireData = hireDoc.data();
 
@@ -276,13 +276,13 @@ exports.webhook = async (req, res) => {
 
                 // Fetch populated data for email
                 let populatedHire = { _id: hireRequestId, ...hireData };
-                
+
                 const serviceDoc = await db.collection('services').doc(hireData.serviceId).get();
                 populatedHire.serviceId = { _id: hireData.serviceId, ...(serviceDoc.exists ? serviceDoc.data() : {}) };
-                
+
                 const clientDoc = await db.collection('users').doc(hireData.clientId).get();
                 populatedHire.clientId = { _id: hireData.clientId, ...(clientDoc.exists ? clientDoc.data() : {}) };
-                
+
                 const businessDoc = await db.collection('users').doc(hireData.businessId).get();
                 populatedHire.businessId = { _id: hireData.businessId, ...(businessDoc.exists ? businessDoc.data() : {}) };
 
